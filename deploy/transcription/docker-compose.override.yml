@@ -1,0 +1,64 @@
+# Overrides do host local (16 vCPU, sem GPU).
+#
+# 1) MAX_ACTIVE_REQUESTS: o codigo usa 2 por padrao em CPU com FAIL_FAST_WHEN_BUSY=true,
+#    o que devolve 503 imediato. Medido: 3 falantes -> 32% de 503. Aqui sobe o teto de
+#    concorrencia por worker, porque com 3 replicas cada uma quase nunca ve 2 requests.
+#
+# 2) transcription-worker-2/3: o lever que funciona. Medido neste box, 2 requests no MESMO
+#    worker com CPU_THREADS=4 (8 de 16 vCPU, folga de sobra) dobra a latencia (1.96s -> 3.83s)
+#    e o worker so usa 537% de 1600%. Ou seja: nao falta CPU, falta paralelismo de processo.
+#    Replicas distintas tem GIL e modelo proprios, entao cada uma serve um falante a ~1.9s.
+#    3 x CPU_THREADS=5 = 15 threads de 16 vCPU.
+services:
+  transcription-worker-1:
+    environment:
+      - WORKER_ID=1
+      - MODEL_SIZE=small
+      - DEVICE=cpu
+      - COMPUTE_TYPE=int8
+      - CPU_THREADS=${CPU_THREADS:-5}
+      - MAX_ACTIVE_REQUESTS=${MAX_ACTIVE_REQUESTS:-2}
+      - API_TOKEN=${API_TOKEN:-}
+
+  transcription-worker-2:
+    build:
+      context: ../..
+      dockerfile: core/meetings/services/transcription/Dockerfile.cpu
+    image: vexaai/v012-transcription-cpu:${IMAGE_TAG:-dev}
+    environment:
+      - WORKER_ID=2
+      - MODEL_SIZE=small
+      - DEVICE=cpu
+      - COMPUTE_TYPE=int8
+      - CPU_THREADS=${CPU_THREADS:-5}
+      - MAX_ACTIVE_REQUESTS=${MAX_ACTIVE_REQUESTS:-2}
+      - API_TOKEN=${API_TOKEN:-}
+    volumes:
+      - transcription-models:/app/models
+    depends_on:
+      - transcription-worker-1
+    restart: unless-stopped
+    networks: [transcription-net]
+
+  transcription-worker-3:
+    build:
+      context: ../..
+      dockerfile: core/meetings/services/transcription/Dockerfile.cpu
+    image: vexaai/v012-transcription-cpu:${IMAGE_TAG:-dev}
+    environment:
+      - WORKER_ID=3
+      - MODEL_SIZE=small
+      - DEVICE=cpu
+      - COMPUTE_TYPE=int8
+      - CPU_THREADS=${CPU_THREADS:-5}
+      - MAX_ACTIVE_REQUESTS=${MAX_ACTIVE_REQUESTS:-2}
+      - API_TOKEN=${API_TOKEN:-}
+    volumes:
+      - transcription-models:/app/models
+    depends_on:
+      - transcription-worker-1
+    restart: unless-stopped
+    networks: [transcription-net]
+
+volumes:
+  transcription-models:

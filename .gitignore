@@ -1,0 +1,9 @@
+# Credenciais — nunca versionar (proteção extra; ops/ também tem o seu próprio)
+*.key
+*.token
+*.cred
+*.env
+.env
+.env.*
+!.env.sample
+secrets/

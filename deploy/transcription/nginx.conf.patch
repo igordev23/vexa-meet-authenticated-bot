@@ -1,0 +1,22 @@
+diff --git a/deploy/transcription/nginx.conf b/deploy/transcription/nginx.conf
+index aa668cb..17ffff7 100644
+--- a/deploy/transcription/nginx.conf
++++ b/deploy/transcription/nginx.conf
+@@ -16,10 +16,14 @@ http {
+         # Worker instances with health checks
+         # max_fails=1: Mark as down after 1 failure (fast detection)
+         # fail_timeout=10s: Retry after 10 seconds (auto-recovery when workers come back up)
++        # Medido neste host (16 vCPU, sem GPU): com CPU_THREADS=4 e 2 requests concorrentes,
++        # o worker usa so ~537% de 1600% de CPU e a latencia dobra (1.9s -> 3.8s) com 12 vCPUs
++        # ociosos. Nao e contencao de CPU: e serializacao no worker (GIL no lado Python do
++        # faster-whisper - mel, Silero VAD, pos-processamento). Threads nao resolve.
++        # Replica resolve: cada processo tem GIL e copia do modelo proprios.
+         server transcription-worker-1:8000 max_fails=1 fail_timeout=10s;
+-        # Scale out: uncomment a worker here AND its service in docker-compose.yml (one GPU each).
+-        # server transcription-worker-2:8000 max_fails=1 fail_timeout=10s;
+-        # server transcription-worker-3:8000 max_fails=1 fail_timeout=10s;
++        server transcription-worker-2:8000 max_fails=1 fail_timeout=10s;
++        server transcription-worker-3:8000 max_fails=1 fail_timeout=10s;
+     }
+ 
+     # Logging
